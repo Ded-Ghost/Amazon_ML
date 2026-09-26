@@ -1,0 +1,2 @@
+validation score of the empty baseline: {'n_entities': 441364, 'macro_f05': 0.05543723547910568, 'f05_singletons': 1.0, 'f05_matched': 0.0}
+wrote 1,732,544 rows to C:\Users\KIIT\Downloads\Amazon_ML\output/matching_results.tsv and candidate_pairs.tsv

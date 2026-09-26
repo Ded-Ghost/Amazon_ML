@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# macOS archive junk
+__MACOSX/
+.DS_Store
+
+# Large data, caches and generated outputs (exceed GitHub's 100 MB file limit)
+student_resource/dataset/
+code/business_entity_resolution/cache/
+output/
+output_variants/
+*.zip

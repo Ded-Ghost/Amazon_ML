@@ -1,0 +1,12 @@
+unit cases OK (PDF example = 0.714)
+
+      split  entities  % singletons  % US  % India
+train (80%)   1765457          5.60 59.99    40.01
+  val (20%)    441364          5.54 59.94    40.06
+
+perfect predictions : 1.0
+all-empty predictions: 0.05543723547910568
+singleton fraction   : 0.05543723547910568
+
+empty baseline breakdown: {'n_entities': 441364, 'macro_f05': 0.05543723547910568, 'f05_singletons': 1.0, 'f05_matched': 0.0}
+scorer checks OK

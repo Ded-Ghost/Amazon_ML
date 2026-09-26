@@ -1,0 +1,4 @@
+rest: 1,465,457 S1 entities, 10,320,219 pool records
+  blocked India: 586,156 S1 vs 4,133,346 pool records
+  blocked US: 879,301 S1 vs 6,186,873 pool records
+blocking done in 441s -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\candidates_rest.npz
