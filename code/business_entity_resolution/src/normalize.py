@@ -1,7 +1,8 @@
 """Text cleaning shared by blocking and matching.
 
-clean():           any script -> ASCII (unidecode), lowercase, "&" -> "and",
-                   apostrophes removed, other punctuation -> space.
+clean():           any script -> ASCII (unidecode), dotted acronyms joined
+                   ("S.A.S." -> "SAS", "L.L.C." -> "LLC"), lowercase, "&" and "+"
+                   -> "and", apostrophes removed, other punctuation -> space.
 name_tokens():     clean() + undo digit-for-letter swaps ("y0ga" -> "yoga")
 address_tokens():  clean() + split letters from numbers ("1604b" -> "1604 b")
                    + drop leading zeros ("012" -> "12")
@@ -29,6 +30,7 @@ _REPEATS = re.compile(r"(.)\1+")
 _SOUND_ALIKE = str.maketrans({"c": "k", "q": "k", "g": "k", "z": "s", "x": "s",
                               "d": "t", "b": "p", "w": "v"})
 _DIGIT_AS_LETTER = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t"})
+_DOTTED_ACRONYM = re.compile(r"\b(?:[A-Za-z]\.){2,}[A-Za-z]?\.?")
 NON_LATIN = re.compile(r"[^\x00-\x7FÀ-ɏ]")
 _WORD = re.compile(r"[\wऀ-෿]+")  # \w misses Indic vowel signs, so add the Indic blocks
 
@@ -49,7 +51,8 @@ _TRANSLITERATION = _load_transliteration()
 
 
 def clean(text):
-    text = unidecode(text).lower().replace("&", " and ").replace("'", "")
+    text = _DOTTED_ACRONYM.sub(lambda m: m.group().replace(".", ""), unidecode(text))
+    text = text.lower().replace("&", " and ").replace("+", " and ").replace("'", "")
     return _NON_ALNUM.sub(" ", text).strip()
 
 

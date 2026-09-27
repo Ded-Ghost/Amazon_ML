@@ -2,5 +2,5 @@ test: 1,732,544 S1 entities, 9,969,589 pool records
   blocked US: 663,106 S1 vs 3,817,031 pool records
   blocked France: 259,452 S1 vs 1,434,993 pool records
   blocked India: 809,986 S1 vs 4,717,565 pool records
-blocking done in 487s -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\candidates_test.npz
+blocking done in 384s -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\candidates_test.npz
 wrote candidate_pairs.tsv (K=50) and empty matching_results.tsv to C:\Users\KIIT\Downloads\Amazon_ML\output

@@ -7,7 +7,7 @@ Needs cache/candidates_train.npz and cache/candidates_val.npz
 
 1. Features for the top-50 blocking candidates of every S1 entity
    (src/features.py). Label = 1 if the candidate is in the ground truth.
-2. Re-ranker (src/rerank.py): a small LightGBM on 11 cheap features keeps at
+2. Re-ranker (src/rerank.py): a small LightGBM on the 26 pair features keeps at
    most KEEP_MAX candidates per entity. These are the final candidates.
 3. Extra features on the kept candidates (src/match_features.py): extra /
    missing words with scores learned from the training pairs (cross-fitted,
@@ -37,6 +37,7 @@ from .data import load_ground_truth, load_source
 from .features import (add_core_names, build_pairs, compute_features,
                        frequent_name_words, prepare_records, refresh_context_features)
 from .match_features import (MATCH_FEATURES, NameCounts, WordScores, assemble, cluster_features, format_features,
+                             sibling_features,
                              cross_fitted_word_features, self_trained_word_features,
                              word_differences)
 from .metrics import macro_f05, score_report
@@ -169,6 +170,8 @@ def main():
         split["format"] = format_features(split["s1_prep"], pool_prep, s1_row, pool_row)
         split["counts"] = name_counts.features(split["s1_prep"], split["s1_numbers"], pool_prep,
                                                pool_numbers, s1_row, pool_row, split["diffs"])
+        split["counts"].update(sibling_features(split["diffs"], split["X"],
+                                                split["s1_prep"]["country"].to_numpy()[s1_row]))
     word_scores = WordScores.learn(train["diffs"], train["y"])
     train["X"] = assemble(train["X"], cross_fitted_word_features(
         train["diffs"], train["y"], train["pairs"]["s1_row"].to_numpy(), SEED),

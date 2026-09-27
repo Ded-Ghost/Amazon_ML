@@ -1,30 +1,30 @@
-records prepared in 164s
-  features for 5,000,038 / 86,625,835 blocking pairs (252s)
-  features for 10,000,056 / 86,625,835 blocking pairs (314s)
-  features for 15,000,076 / 86,625,835 blocking pairs (376s)
-  features for 20,000,111 / 86,625,835 blocking pairs (437s)
-  features for 25,000,133 / 86,625,835 blocking pairs (501s)
-  features for 30,000,151 / 86,625,835 blocking pairs (561s)
-  features for 35,000,170 / 86,625,835 blocking pairs (624s)
-  features for 40,000,199 / 86,625,835 blocking pairs (688s)
-  features for 45,000,242 / 86,625,835 blocking pairs (754s)
-  features for 50,000,252 / 86,625,835 blocking pairs (817s)
-  features for 55,000,275 / 86,625,835 blocking pairs (882s)
-  features for 60,000,306 / 86,625,835 blocking pairs (950s)
-  features for 65,000,348 / 86,625,835 blocking pairs (1008s)
-  features for 70,000,388 / 86,625,835 blocking pairs (1072s)
-  features for 75,000,436 / 86,625,835 blocking pairs (1130s)
-  features for 80,000,461 / 86,625,835 blocking pairs (1194s)
-  features for 85,000,479 / 86,625,835 blocking pairs (1252s)
-  features for 86,625,835 / 86,625,835 blocking pairs (1283s)
-matcher done, two passes (1565s)
+records prepared in 160s
+  features for 5,000,039 / 86,625,810 blocking pairs (72s)
+  features for 10,000,057 / 86,625,810 blocking pairs (141s)
+  features for 15,000,077 / 86,625,810 blocking pairs (209s)
+  features for 20,000,112 / 86,625,810 blocking pairs (277s)
+  features for 25,000,135 / 86,625,810 blocking pairs (348s)
+  features for 30,000,153 / 86,625,810 blocking pairs (414s)
+  features for 35,000,172 / 86,625,810 blocking pairs (484s)
+  features for 40,000,200 / 86,625,810 blocking pairs (552s)
+  features for 45,000,243 / 86,625,810 blocking pairs (620s)
+  features for 50,000,254 / 86,625,810 blocking pairs (687s)
+  features for 55,000,277 / 86,625,810 blocking pairs (758s)
+  features for 60,000,308 / 86,625,810 blocking pairs (819s)
+  features for 65,000,338 / 86,625,810 blocking pairs (889s)
+  features for 70,000,379 / 86,625,810 blocking pairs (950s)
+  features for 75,000,422 / 86,625,810 blocking pairs (1020s)
+  features for 80,000,436 / 86,625,810 blocking pairs (1086s)
+  features for 85,000,454 / 86,625,810 blocking pairs (1162s)
+  features for 86,625,810 / 86,625,810 blocking pairs (1189s)
+matcher done, two passes (1687s)
 
 per S1 entity, by country:
          entities  candidates_mean  matches_mean  share_no_match
 country                                                         
-France     259452            8.286         2.931           0.068
-India      809986            6.426         3.212           0.062
-US         663106            6.428         3.301           0.058
-total candidate pairs: 11,617,243 (6.71 per S1 entity)
+France     259452            8.517         3.061           0.064
+India      809986            6.474         3.221           0.061
+US         663106            6.467         3.355           0.057
+total candidate pairs: 11,741,382 (6.78 per S1 entity)
 
-threshold 0.725: wrote C:\Users\KIIT\Downloads\Amazon_ML\output\matching_results.tsv and candidate_pairs.tsv in 1617s
+threshold 0.675: wrote C:\Users\KIIT\Downloads\Amazon_ML\output\matching_results.tsv and candidate_pairs.tsv in 1976s

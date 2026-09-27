@@ -19,6 +19,7 @@ entities (never from validation) and only from the provided training data.
 normalize.name_tokens() applies it to every name that contains non-Latin
 characters, so blocking and all features see "private" instead of "praaivett".
 """
+import sys
 from collections import Counter
 
 from .config import TRANSLITERATION_PATH as DICTIONARY_PATH, CACHE_DIR
@@ -55,6 +56,7 @@ def learn_dictionary(s1_names, match_names, gt, s1_ids):
 
 
 def main():
+    sys.stdout.reconfigure(encoding="utf-8")  # the examples contain Indian scripts
     gt = load_ground_truth()
     s1 = load_source("train", 1, usecols=["entity_id", "business_name"])
     train_ids, _ = split_s1_ids(s1["entity_id"])

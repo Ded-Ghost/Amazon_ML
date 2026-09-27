@@ -1,0 +1,128 @@
+frequent name words (India, 216): ['a', 'academy', 'ace', 'aditya', 'advisors', 'agro', 'al', 'all', 'alpha', 'anand', 'and', 'apex', 'arihant', 'as', 'associates', 'baba', 'balaji', 'bangalore', 'best', 'bharat', 'big', 'black', 'blue', 'bombay', 'bright'] ...
+frequent name words (US, 269): ['a', 'academy', 'ace', 'advanced', 'advisors', 'all', 'alliance', 'allied', 'american', 'anchor', 'and', 'animal', 'ankle', 'apex', 'as', 'asset', 'associates', 'association', 'atlantic', 'auto', 'b', 'bay', 'beacon', 'behavioral', 'best'] ...
+records prepared in 359s
+train: 300,000 entities, 14,999,985 pairs, 1,011,730 positives (103s for features)
+val: 441,364 entities, 22,068,104 pairs, 1,488,115 positives (147s for features)
+Training until validation scores don't improve for 20 rounds
+[50]	valid_0's binary_logloss: 0.02214
+[100]	valid_0's binary_logloss: 0.0183599
+[150]	valid_0's binary_logloss: 0.0171787
+[200]	valid_0's binary_logloss: 0.0164583
+[250]	valid_0's binary_logloss: 0.0159634
+[300]	valid_0's binary_logloss: 0.0157924
+[350]	valid_0's binary_logloss: 0.0184079
+Early stopping, best iteration is:
+[357]	valid_0's binary_logloss: 0.0156014
+re-ranker: 357 trees; keep at most 10 candidates with probability >= 0.005
+train: 6.06 candidates per entity (median 6, 0.1% empty), pair recall 0.9717, oracle F0.5 0.9911
+val: 6.08 candidates per entity (median 6, 0.1% empty), pair recall 0.9711, oracle F0.5 0.9908
+word, cluster and count features done (1031s)
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's binary_logloss: 0.0551475
+[200]	valid_0's binary_logloss: 0.0489234
+[300]	valid_0's binary_logloss: 0.0474216
+[400]	valid_0's binary_logloss: 0.0465608
+[500]	valid_0's binary_logloss: 0.0461886
+[600]	valid_0's binary_logloss: 0.0459385
+[700]	valid_0's binary_logloss: 0.0458604
+Early stopping, best iteration is:
+[698]	valid_0's binary_logloss: 0.045857
+trained 698 trees in 1088s total
+
+ threshold   F0.5  F0.5 one-owner
+     0.300 0.9693          0.9711
+     0.325 0.9705          0.9720
+     0.350 0.9716          0.9729
+     0.375 0.9725          0.9736
+     0.400 0.9732          0.9742
+     0.425 0.9739          0.9748
+     0.450 0.9745          0.9754
+     0.475 0.9751          0.9759
+     0.500 0.9756          0.9763
+     0.525 0.9761          0.9767
+     0.550 0.9765          0.9771
+     0.575 0.9768          0.9773
+     0.600 0.9771          0.9775
+     0.625 0.9773          0.9778
+     0.650 0.9775          0.9779
+     0.675 0.9777          0.9780
+     0.700 0.9778          0.9781
+     0.725 0.9778          0.9780
+     0.750 0.9778          0.9780
+     0.775 0.9777          0.9780
+     0.800 0.9776          0.9778
+     0.825 0.9774          0.9775
+     0.850 0.9771          0.9773
+     0.875 0.9766          0.9767
+     0.900 0.9759          0.9760
+     0.925 0.9748          0.9749
+     0.950 0.9729          0.9729
+
+chosen: threshold=0.7, one owner per record=True
+validation (exact scorer): {'n_entities': 441364, 'macro_f05': 0.9780589875831259, 'f05_singletons': 0.9786251430439759, 'f05_matched': 0.978025759411553}
+  India: macro F0.5 = 0.9774
+  US: macro F0.5 = 0.9785
+robustness (validation F0.5 at the chosen threshold):
+  words known + self-training:       0.9781
+  all words unknown (new language):  0.9771
+  all words unknown + self-training: 0.9778
+
+feature importance (share of total gain):
+num_pool_share            0.3385
+clu_addr_max              0.0811
+name_partial              0.0624
+extra_min                 0.0613
+extra_mean                0.0588
+num_shared                0.0498
+addr_token_set            0.0386
+block_score               0.0264
+name_jw                   0.0206
+cand_addr_other_s1        0.0195
+extra_df_min              0.0192
+num_min_diff              0.0153
+extra_df_max              0.0144
+pool_addr_n               0.0139
+addr_token_set_vs_best    0.0135
+block_rank                0.0120
+same_addr_key             0.0105
+s1_name_n                 0.0098
+cand_core_other_s1        0.0089
+pool_name_n               0.0088
+missing_df_min            0.0081
+name_nospace_ratio        0.0079
+name_token_sort           0.0077
+cand_name_other_s1        0.0073
+block_score_rel           0.0068
+num_s1                    0.0066
+core_token_set            0.0061
+name_len_diff             0.0057
+s1_core_n                 0.0048
+n_missing                 0.0042
+skel_ratio                0.0041
+missing_df_max            0.0040
+num_dropped_digit         0.0040
+name_token_set            0.0040
+addr_ratio                0.0035
+name_words_pool           0.0031
+name_ratio                0.0028
+clu_n_similar             0.0028
+skel_token_set            0.0026
+addr_partial              0.0025
+missing_min               0.0025
+s1_addr_n                 0.0022
+core_ratio                0.0020
+n_extra                   0.0017
+missing_mean              0.0016
+cand_style                0.0014
+clu_name_max              0.0013
+num_pool                  0.0011
+name_words_s1             0.0010
+extra_unknown             0.0008
+name_token_set_vs_best    0.0008
+is_s3                     0.0006
+cand_symbols              0.0006
+cand_accent               0.0005
+raw_equal                 0.0002
+raw_equal_nocase          0.0001
+pool_addr_empty           0.0000
+saved model and settings to C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache

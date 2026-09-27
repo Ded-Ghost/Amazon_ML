@@ -27,7 +27,17 @@
    address belongs to *another* S1 business, how common each differing word
    is, and the distance between house numbers.
 
-4. Formatting (format_features): whether the raw strings are identical, the
+4. Sibling words, label-free (sibling_features): the generator places sibling
+   businesses ("... Midtown", "... Holding") at a different house number,
+   while true copies keep the number. So, per country and over the pairs of
+   the dataset being scored (no labels), each extra word gets the share of its
+   pairs whose house numbers conflict: "midtown", "westgate" ~0.8 (all true
+   match rates 0.0); "dba", "formerly" ~0.00 (true match rates > 0.97). This
+   is computed on the test pairs themselves, so it also covers words of a
+   country never seen in training (US-only model tested on India: 0.934 ->
+   0.948).
+
+5. Formatting (format_features): whether the raw strings are identical, the
    letter case / accents / symbols of the candidate name, and whether a house
    number differs only by a dropped digit (826 -> 26 is copy noise, while
    517 -> 524 is a neighbouring business).
@@ -49,9 +59,11 @@ CLUSTER_FEATURES = ["clu_name_max", "clu_addr_max", "clu_n_similar"]
 COUNT_FEATURES = ["s1_name_n", "s1_core_n", "cand_name_other_s1", "cand_core_other_s1", "pool_name_n",
                   "extra_df_min", "extra_df_max", "missing_df_min", "missing_df_max", "num_min_diff",
                   "s1_addr_n", "cand_addr_other_s1", "pool_addr_n", "same_addr_key"]
+SIBLING_FEATURES = ["sib_max", "sib_mean", "sib_n_high"]
 FORMAT_FEATURES = ["raw_equal", "raw_equal_nocase", "cand_style", "cand_accent", "cand_symbols",
                    "num_dropped_digit", "name_len_diff"]
-MATCH_FEATURES = FEATURES + WORD_FEATURES + CLUSTER_FEATURES + COUNT_FEATURES + FORMAT_FEATURES
+MATCH_FEATURES = (FEATURES + WORD_FEATURES + CLUSTER_FEATURES + COUNT_FEATURES + SIBLING_FEATURES
+                  + FORMAT_FEATURES)
 SMOOTH = 20        # pseudo-count pulling rare words towards the average score
 UNKNOWN_BELOW = 5  # a word seen fewer times than this in training counts as unknown
 WORD_DROPOUT = 0.3              # share of words hidden while training (robustness to new languages)
@@ -371,9 +383,38 @@ def format_features(s1_prep, pool_prep, s1_row, pool_row, chunk_size=200_000):
     return {k: values[:, j] for j, k in enumerate(FORMAT_FEATURES)}
 
 
+def sibling_features(diffs, X_base, country, smooth=20):
+    """Per pair: how often its extra words come with conflicting house numbers (label-free).
+
+    Rates are computed per country over the given pairs (the dataset being
+    scored), smoothed towards the country's overall conflict share.
+    """
+    num_s1, num_pool, num_shared = (X_base[:, FEATURES.index(c)] for c in ("num_s1", "num_pool", "num_shared"))
+    conflict = (num_s1 > 0) & (num_pool > 0) & (num_shared == 0)
+    agree = num_shared > 0
+    f = {k: np.full(len(diffs), np.nan, dtype=np.float32) for k in SIBLING_FEATURES}
+    for c in np.unique(country):
+        rows = np.flatnonzero(country == c)
+        n_conflict, n_agree = Counter(), Counter()
+        for i in rows:
+            for word in diffs[i][0]:
+                n_conflict[word] += conflict[i]
+                n_agree[word] += agree[i]
+        prior = conflict[rows].sum() / max(conflict[rows].sum() + agree[rows].sum(), 1)
+        for i in rows:
+            extra = diffs[i][0]
+            if extra:
+                rates = [(n_conflict[w] + smooth * prior) / (n_conflict[w] + n_agree[w] + smooth) for w in extra]
+                f["sib_max"][i] = max(rates)
+                f["sib_mean"][i] = sum(rates) / len(rates)
+                f["sib_n_high"][i] = sum(r > 0.5 for r in rates)
+    return f
+
+
 def assemble(X, word_features, cluster, counts, formatting):
-    """Full matcher matrix in MATCH_FEATURES order."""
+    """Full matcher matrix in MATCH_FEATURES order (counts must include the sibling features)."""
     return np.column_stack([X] + [word_features[k] for k in WORD_FEATURES] +
                            [cluster[k] for k in CLUSTER_FEATURES] +
                            [counts[k] for k in COUNT_FEATURES] +
+                           [counts[k] for k in SIBLING_FEATURES] +
                            [formatting[k] for k in FORMAT_FEATURES]).astype(np.float32)

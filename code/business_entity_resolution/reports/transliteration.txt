@@ -1,0 +1,2 @@
+1,312 words -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\transliteration.tsv
+examples: [('यूनिवर्सल', 'universal'), ('इम्पेक्स', 'impex'), ('प्राइवेट', 'private'), ('लिमिटेड', 'limited'), ('शिवम', 'shivam'), ('फूड्स', 'foods'), ('सदर्न', 'southern'), ('इंफोटेक', 'infotech'), ('ટેક', 'tech'), ('માર્કેટિંગ', 'marketing'), ('લિમિટેડ', 'limited'), ('ग्रेट', 'great'), ('प्रोजेक्ट्स', 'projects'), ('ਫਾਰਚੂਨ', 'fortune'), ('ਫੂਡਜ਼', 'foods')]

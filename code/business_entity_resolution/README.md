@@ -1,38 +1,39 @@
-# Business Entity Resolution — Amazon ML Challenge 2026
+# Business Entity Resolution — Amazon ML Challenge 2026 (team Null-Pointers)
 
 For every Source 1 business record, find all Source 2 / Source 3 records that
 describe the same real-world business (zero, one or many). Scored with
 macro-averaged F0.5 per Source 1 entity (singletons included).
 
-**Result:** macro F0.5 = **0.9673** on our held-out validation split
-(20% of the training S1 entities) with a final candidate set of only ~4.7
-records per S1 entity (at most 8); empty-prediction baseline 0.0554.
+**Result:**
+- **Validation:** macro F0.5 = **0.9791** on our held-out split (20% of the training
+  S1 entities, scored with all training owners competing, as on the test set).
+- **Candidates:** about 6.8 per S1 entity (at most 10).
+- **Leaderboard:** see `reports/`.
 
 ## Layout
 
 ```
 code/business_entity_resolution/
 ├── src/
-│   ├── config.py          paths (overridable via env vars) and the random seed
-│   ├── data.py            TSV loaders (sep="\t", everything as strings, no NaN)
-│   ├── metrics.py         exact macro F0.5 scorer incl. singleton rules
-│   ├── split.py           seeded 80/20 split of Source 1 entities
-│   ├── output_writer.py   writes matching_results.tsv + candidate_pairs.tsv
-│   ├── normalize.py       text cleaning + phonetic "skeleton" keys
-│   ├── transliteration.py Indian-script -> Latin word dictionary learned from training pairs
-│   ├── blocking.py        candidate generation (rare-key TF-IDF search per country)
-│   ├── eda.py             exploratory analysis             (phase 1)
-│   ├── check_scorer.py    scorer + split sanity checks     (phase 1)
-│   ├── baseline_empty.py  "predict nothing" baseline       (phase 1)
-│   ├── run_blocking.py    blocking for train / val / test  (phase 2)
-│   ├── features.py        pair features for the re-ranker and the matcher
-│   ├── rerank.py          2nd blocking stage: cheap re-ranker keeps <= 8 candidates
-│   ├── match_features.py  extra/missing-word and cluster features for the matcher
-│   ├── train_matcher.py   re-ranker + LightGBM matcher + F0.5 decision tuning
-│   └── predict.py         test predictions -> output/*.tsv     (phase 3)
-├── reports/               saved outputs of the scripts and experiment notes
-├── cache/                 intermediate results + trained model (created by the scripts,
-│                          not shipped: ~2.4 GB)
+│   ├── config.py              paths (overridable via env vars) and the random seed
+│   ├── data.py                TSV loaders (sep="\t", everything as strings, no NaN)
+│   ├── metrics.py             exact macro F0.5 scorer incl. singleton rules
+│   ├── split.py               seeded 80/20 split of Source 1 entities
+│   ├── output_writer.py       writes matching_results.tsv + candidate_pairs.tsv (format checks)
+│   ├── normalize.py           text cleaning, phonetic "skeleton" keys
+│   ├── transliteration.py     Indian-script -> Latin word dictionary learned from training pairs
+│   ├── blocking.py            stage 1: rare-key TF-IDF search per country (top 50)
+│   ├── run_blocking.py        runs blocking for train / val / rest / test
+│   ├── features.py            26 pair features (names, addresses, numbers, blocking)
+│   ├── rerank.py              stage 2: re-ranker keeps <= 10 candidates (the final candidate set)
+│   ├── match_features.py      word-difference, cluster, count, sibling-word and formatting features
+│   ├── train_matcher.py       re-ranker + matcher on a 300k sample, tuned on validation
+│   ├── validate_competition.py threshold tuned with all training owners competing
+│   ├── train_final.py         final matcher refitted on all 2.2M labelled entities
+│   ├── predict.py             test predictions -> output/*.tsv
+│   ├── eda.py, check_scorer.py, baseline_empty.py   exploration scripts (phase 1)
+├── reports/                   logs of every step and experiment notes
+├── cache/                     intermediate results + trained models (created by the scripts, not shipped)
 ├── requirements.txt
 └── README.md
 ```
@@ -59,32 +60,37 @@ Point it elsewhere with environment variables:
 ## Reproduce the submission (data -> blocking -> matching -> output)
 
 Run from `code/business_entity_resolution/`, in this order. Times are for a
-16-thread laptop with 32 GB RAM (peak use about 12 GB); do not let the machine
+16-thread laptop with 32 GB RAM (peak use about 20 GB); do not let the machine
 sleep during the long steps.
 
 ```bash
 # 0. word dictionary for Indian-script names (learned from the 80% training half)
 python -m src.transliteration              # ~3 min  -> cache/transliteration.tsv
 
-# 1. blocking: candidate lists for a 300k training sample, the validation split and the test set
-python -m src.run_blocking --split train   # ~3 min  -> cache/candidates_train.npz
-python -m src.run_blocking --split val     # ~4 min  -> cache/candidates_val.npz (+ recall table)
-python -m src.run_blocking --split test    # ~8 min  -> cache/candidates_test.npz
+# 1. stage-1 blocking (top 50 per S1 entity)
+python -m src.run_blocking --split train   # ~3 min  300k-entity sample used to develop the models
+python -m src.run_blocking --split val     # ~4 min  20% validation half (+ recall table)
+python -m src.run_blocking --split rest    # ~10 min other training entities (competition + final fit)
+python -m src.run_blocking --split test    # ~8 min
 
-# 2. re-ranker + matching model: features, two LightGBM models, threshold tuned for F0.5
-python -m src.train_matcher                # ~20 min -> cache/reranker.txt, word_scores.json,
-                                           #            matcher.txt, matcher.json
+# 2. re-ranker + matcher on the 300k sample, tuned and measured on validation
+python -m src.train_matcher                # ~30 min -> cache/reranker.txt, word_scores.json, matcher.*
 
-# 3. test predictions and both submission files
-python -m src.predict                      # ~30 min -> <root>/output/matching_results.tsv
+# 3. threshold under full owner competition (validation + all other training entities)
+python -m src.validate_competition         # ~40 min -> threshold in cache/matcher.json
+
+# 4. final matcher refitted on all labelled entities (same settings)
+python -m src.train_final                  # ~60 min -> cache/matcher.txt, word_scores.json
+
+# 5. test predictions and both submission files
+python -m src.predict                      # ~40 min -> <root>/output/matching_results.tsv
                                            #            <root>/output/candidate_pairs.tsv
 ```
 
 `run_blocking --split test` also writes a provisional `candidate_pairs.tsv` and an
-empty `matching_results.tsv`; step 3 overwrites both with the final files.
-Everything is seeded (`SEED = 42`), and LightGBM runs in deterministic mode. For the
-previous (single-stage) version of this pipeline we re-ran `train_matcher` and got a
-byte-identical model file; the re-ranker version uses the same settings.
+empty `matching_results.tsv`; step 5 overwrites both. `python -m src.predict --reuse
+--threshold T --out DIR` re-applies the decision rule to the saved test probabilities.
+Everything is seeded (`SEED = 42`), and LightGBM runs in deterministic mode.
 
 Exploration scripts from the first phase (not needed to reproduce the output;
 `baseline_empty` overwrites `<root>/output/`):
@@ -97,44 +103,52 @@ python -m src.baseline_empty   # "predict nothing" baseline (score floor)
 
 ## Pipeline
 
-1. **Normalisation** (`normalize.py`): known Indian-script words are first replaced by
-   their Latin spelling using a dictionary learned from position-aligned training
-   pairs (`transliteration.py`: "प्राइवेट" -> "private", 1,312 words, covers ~93% of
-   Indian-script words in the test set); then unidecode (any script -> ASCII), lowercase,
-   punctuation removed, digit-for-letter typos fixed in names ("y0ga"), letters
-   split from house numbers ("1604b"), and a phonetic skeleton per name word
-   ("praaivett" / "private" -> "prvt").
-2. **Blocking** (`blocking.py`): within each country label, records are
-   described by rare keys (name words, skeletons, skeleton pairs, glued names,
-   address words and bigrams). Keys are weighted by IDF, keys in more than
-   5,000 records are dropped, and the top 100 S2/S3 records by TF-IDF cosine
-   are kept per S1 entity. See `reports/blocking_experiments.md`.
-2b. **Re-ranking, the second blocking stage** (`rerank.py`): a small LightGBM
-   (31 leaves, ~220 trees, 11 cheap features: blocking score/rank, a few name
-   similarities, address overlap, house-number overlap) re-orders the top 50
-   and keeps at most 8 candidates with re-rank probability >= 0.05. These kept
-   candidates are the final candidate set (`candidate_pairs.tsv`, ~4.7 per S1
-   entity); the matcher runs only on them. See
-   `reports/candidate_size_experiments.md`.
-3. **Pair features** (`features.py`): 26 language-neutral numbers per
-   (S1, candidate) pair: rapidfuzz name similarities (ratio, token-set,
-   token-sort, partial, Jaro-Winkler, glued), the same on phonetic skeletons
-   and on "core" names (frequent words of the country removed, learned from
-   the data), address similarities, shared house/plot numbers, blocking
-   score and rank, and comparisons with the entity's best candidate.
-   The country label itself is never a feature.
-3b. **Word and cluster features** (`match_features.py`, on the kept candidates):
-   words the candidate adds to / drops from the S1 name, scored by how often such
-   a pair is a true match in the training pairs ("midtown", "south", "holdings":
-   almost never; "services", "www", "dba": usually), cross-fitted for the training
-   rows; and how similar each candidate is to the *other* kept candidates of the
-   same entity (true matches are copies of each other).
-4. **Matcher** (`train_matcher.py`): LightGBM binary classifier (MIT licence)
-   on the re-ranker's kept candidates of 300k training entities, early-stopped
-   on 10% of the training entities.
-5. **Decision rule**: predict pairs with probability >= threshold (tuned on
-   validation for macro F0.5), then keep each S2/S3 record only for its most
-   probable S1 entity (in the training data no record belongs to two S1s).
+1. **Normalisation** (`normalize.py`, `transliteration.py`):
+   - Indian-script words are replaced by their Latin spelling, using a dictionary
+     learned from position-aligned training pairs ("प्राइवेट" -> "private").
+   - `unidecode`; dotted acronyms joined ("S.A.S." -> "sas"); "&"/"+" -> "and";
+     punctuation removed.
+   - Digit-for-letter typos fixed in names ("y0ga"); house numbers cleaned ("012" -> "12",
+     "1604b" -> "1604 b").
+   - A phonetic skeleton per name word ("praaivett" / "private" -> "prvt").
+2. **Blocking** (`blocking.py`):
+   - Inside each country label, records are described by rare keys: name words,
+     skeletons, unordered skeleton pairs, glued names, and address words and bigrams.
+   - Keys are IDF-weighted, keys found in more than 5,000 records are dropped, and the
+     top 50 S2/S3 records by TF-IDF cosine are kept.
+3. **Re-ranking** (`rerank.py`):
+   - A small LightGBM on the 26 pair features keeps at most 10 candidates with
+     probability >= 0.005.
+   - These are the final candidate set (`candidate_pairs.tsv`); the matcher scores only
+     them.
+4. **Matcher features** (`features.py`, `match_features.py`), 60 per pair:
+   - string similarities of names and addresses;
+   - learned scores for the words a candidate adds to or drops from the S1 name
+     ("midtown", "south": almost never a match; "services", "dba": usually);
+   - similarity to the other candidates of the same entity;
+   - label-free counts over the whole dataset: how many S1 businesses share the name or
+     the address, how common each differing word is, and house-number distance;
+   - label-free sibling-word rates: for each word a candidate adds to the S1 name, the
+     share of that country's pairs (in the dataset being scored, no labels) where the
+     word comes with a conflicting house number ("midtown" ~0.8: a sibling branch;
+     "dba" ~0.0: a true copy). They are computed from the unlabeled pairs, so they
+     also cover the words of a country never seen in training;
+   - formatting (case, accents, symbols, dropped digits).
+   - The country label is never a feature.
+5. **Matcher** (`train_matcher.py`, `train_final.py`):
+   - LightGBM (MIT licence), developed on a 300k-entity sample and refitted on all 2.2M
+     labelled entities.
+   - Word scores for the training rows are cross-fitted with 30% word dropout, so the
+     model also learns to cope with unknown words.
+6. **Prediction** (`predict.py`):
+   - Two passes. Words never seen in training (e.g. French) get scores from confident
+     first-pass predictions (self-training on the unlabeled test pairs; no labels used).
+   - Pairs above the threshold are kept, then each S2/S3 record goes to its most
+     probable S1 entity only (one owner per record, as in the training data).
+   - The threshold is tuned on validation with all training owners competing
+     (`validate_competition.py`).
+   Optional, for countries without training labels: `--unseen-strict` rejects matches
+   whose house numbers conflict, and `--unseen-threshold T` uses a separate threshold.
 
 Validate the submission (from `student_resource/`):
 
@@ -143,17 +157,15 @@ python utils/validate_submission.py --matching ../output/matching_results.tsv \
     --candidate ../output/candidate_pairs.tsv --test-dir dataset/test
 ```
 
-## Validation protocol
-
-Source 1 train entities are split 80/20 with seed 42 (`src/split.py`). The
-Source 2 / Source 3 pools are shared by both halves, exactly like at test time.
-Scores reported in this project are macro F0.5 on the 20% validation half.
-
 ## Rules compliance
 
-* No external data, APIs, geocoding or lookups: only the provided TSV files are read.
-* The only model is a LightGBM classifier (MIT licence) trained from scratch; there are
-  no pretrained models.
-* The country label is treated as an open set. Blocking runs per label found in the
-  data, frequent words are learned per label, and the country is never a model feature,
-  so France (test only) goes through exactly the same code as US and India.
+* **No external data, APIs, geocoding or lookups:** only the provided TSV files are read.
+  The Indian-script dictionary and the word scores are learned from the provided
+  training pairs. Self-training uses the model's own predictions on the provided test
+  records, never labels.
+* **Models:** LightGBM classifiers (MIT licence) trained from scratch; no pretrained
+  models.
+* **Country as an open set:** blocking runs per label found in the data, frequent words
+  are learned per label, and the country is never a model feature. France (test only)
+  goes through the same code as US and India. Every rule for "countries without training
+  labels" applies to any such label.

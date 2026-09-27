@@ -1,0 +1,54 @@
+2,206,821 labelled entities prepared (316s)
+  features for 5,000,000 / 110,340,761 blocking pairs (78s)
+  features for 10,000,041 / 110,340,761 blocking pairs (147s)
+  features for 15,000,085 / 110,340,761 blocking pairs (214s)
+  features for 20,000,085 / 110,340,761 blocking pairs (282s)
+  features for 25,000,085 / 110,340,761 blocking pairs (346s)
+  features for 30,000,085 / 110,340,761 blocking pairs (410s)
+  features for 35,000,134 / 110,340,761 blocking pairs (477s)
+  features for 40,000,134 / 110,340,761 blocking pairs (543s)
+  features for 45,000,157 / 110,340,761 blocking pairs (609s)
+  features for 50,000,203 / 110,340,761 blocking pairs (676s)
+  features for 55,000,250 / 110,340,761 blocking pairs (744s)
+  features for 60,000,250 / 110,340,761 blocking pairs (805s)
+  features for 65,000,250 / 110,340,761 blocking pairs (868s)
+  features for 70,000,250 / 110,340,761 blocking pairs (928s)
+  features for 75,000,282 / 110,340,761 blocking pairs (996s)
+  features for 80,000,311 / 110,340,761 blocking pairs (1056s)
+  features for 85,000,311 / 110,340,761 blocking pairs (1128s)
+  features for 90,000,357 / 110,340,761 blocking pairs (1188s)
+  features for 95,000,357 / 110,340,761 blocking pairs (1253s)
+  features for 100,000,392 / 110,340,761 blocking pairs (1313s)
+  features for 105,000,404 / 110,340,761 blocking pairs (1375s)
+  features for 110,000,411 / 110,340,761 blocking pairs (1446s)
+  features for 110,340,761 / 110,340,761 blocking pairs (1452s)
+13,396,163 kept pairs, 7,418,921 true (1797s)
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's binary_logloss: 0.0527089
+[200]	valid_0's binary_logloss: 0.0453164
+[300]	valid_0's binary_logloss: 0.0431755
+[400]	valid_0's binary_logloss: 0.0421326
+[500]	valid_0's binary_logloss: 0.041434
+[600]	valid_0's binary_logloss: 0.0409785
+[700]	valid_0's binary_logloss: 0.0406112
+[800]	valid_0's binary_logloss: 0.0403544
+[900]	valid_0's binary_logloss: 0.0401639
+[1000]	valid_0's binary_logloss: 0.0400097
+[1100]	valid_0's binary_logloss: 0.0398728
+[1200]	valid_0's binary_logloss: 0.0397334
+[1300]	valid_0's binary_logloss: 0.0396148
+[1400]	valid_0's binary_logloss: 0.039557
+[1500]	valid_0's binary_logloss: 0.0394817
+[1600]	valid_0's binary_logloss: 0.0394536
+[1700]	valid_0's binary_logloss: 0.0394005
+[1800]	valid_0's binary_logloss: 0.0393527
+[1900]	valid_0's binary_logloss: 0.0393398
+[2000]	valid_0's binary_logloss: 0.0392966
+[2100]	valid_0's binary_logloss: 0.0392783
+[2200]	valid_0's binary_logloss: 0.0392668
+[2300]	valid_0's binary_logloss: 0.0392462
+[2400]	valid_0's binary_logloss: 0.0392448
+Early stopping, best iteration is:
+[2372]	valid_0's binary_logloss: 0.0392361
+final matcher: 2372 trees (2662s)
+saved final matcher trained on 2,206,821 entities to C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache

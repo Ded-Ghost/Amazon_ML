@@ -1,4 +1,4 @@
 train: 300,000 S1 entities, 10,320,219 pool records
   blocked US: 179,766 S1 vs 6,186,873 pool records
   blocked India: 120,234 S1 vs 4,133,346 pool records
-blocking done in 197s -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\candidates_train.npz
+blocking done in 153s -> C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache\candidates_train.npz

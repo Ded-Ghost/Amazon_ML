@@ -31,8 +31,9 @@ from .config import CACHE_DIR, OUTPUT_DIR, SEED
 from .data import load_source
 from .features import (add_core_names, build_pairs, compute_features, entity_chunks,
                        frequent_name_words, prepare_records, refresh_context_features)
-from .match_features import (NameCounts, WordScores, assemble, cluster_features, format_features,
+from .match_features import (NameCounts, WordScores, assemble, cluster_features, format_features, sibling_features,
                              self_trained_word_features, word_differences)
+from .normalize import address_tokens
 from .output_writer import write_submission
 from .rerank import keep_mask, rerank_probability
 from .run_blocking import load_candidates
@@ -45,17 +46,16 @@ def load_models():
             WordScores.load(CACHE_DIR / "word_scores.json"))
 
 
-def score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_counts, settings,
-                log_prefix=""):
-    """Final candidate pairs (s1_row, pool_row) and their match probabilities.
+def kept_candidate_features(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_counts,
+                            settings, reranker, log_prefix=""):
+    """Final candidate pairs and all their matcher inputs, built chunk by chunk.
 
-    Used for the test set and for the full-competition validation. Blocking
-    candidates are processed in chunks of whole S1 entities (features ->
-    re-ranker cut -> word/cluster/count features), then the matcher runs in two
-    passes with self-training for words never seen in training.
+    Blocking candidates are processed in chunks of whole S1 entities: pair
+    features -> re-ranker cut -> word differences, cluster, count and
+    formatting features. Returns a dict with s1_row, pool_row, X_base, diffs,
+    cluster, counts, formatting (word scores are applied later).
     """
     start = time.time()
-    reranker, model, word_scores = load_models()
     s1_names = s1_prep["name"].to_numpy()
     pool_names = pool_prep["name"].to_numpy()
     pairs = build_pairs(cand, score, settings["K"])
@@ -75,24 +75,39 @@ def score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_
                       format_features(s1_prep, pool_prep, s1_row, pool_row)))
         print(f"{log_prefix}  features for {hi:,} / {len(pairs):,} blocking pairs "
               f"({time.time() - start:.0f}s)", flush=True)
+    return {
+        "s1_row": np.concatenate([p[0] for p in parts]),
+        "pool_row": np.concatenate([p[1] for p in parts]),
+        "X_base": np.concatenate([p[2] for p in parts]),
+        "diffs": [d for p in parts for d in p[3]],
+        "cluster": {k: np.concatenate([p[4][k] for p in parts]) for k in parts[0][4]},
+        "counts": {k: np.concatenate([p[5][k] for p in parts]) for k in parts[0][5]},
+        "formatting": {k: np.concatenate([p[6][k] for p in parts]) for k in parts[0][6]},
+    }
 
-    # the final candidate set: exactly the pairs the matcher scores
-    s1_row = np.concatenate([p[0] for p in parts])
-    pool_row = np.concatenate([p[1] for p in parts])
-    X_base = np.concatenate([p[2] for p in parts])
-    diffs = [d for p in parts for d in p[3]]
-    cluster = {key: np.concatenate([p[4][key] for p in parts]) for key in parts[0][4]}
-    counts = {key: np.concatenate([p[5][key] for p in parts]) for key in parts[0][5]}
-    formatting = {key: np.concatenate([p[6][key] for p in parts]) for key in parts[0][6]}
-    del parts
+
+def score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_counts, settings,
+                log_prefix=""):
+    """Final candidate pairs (s1_row, pool_row) and their match probabilities.
+
+    Used for the test set and for the full-competition validation. The matcher
+    runs in two passes with self-training for words never seen in training.
+    """
+    start = time.time()
+    reranker, model, word_scores = load_models()
+    k = kept_candidate_features(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_counts,
+                                settings, reranker, log_prefix)
+    k["counts"].update(sibling_features(k["diffs"], k["X_base"], s1_prep["country"].to_numpy()[k["s1_row"]]))
+
+    def predict(word_features):
+        return model.predict(assemble(k["X_base"], word_features, k["cluster"], k["counts"], k["formatting"]))
 
     # pass 1 with the training word scores; then words never seen in training
     # (mostly French) get scores from confident pass-1 predictions (self-training)
-    first = model.predict(assemble(X_base, word_scores.features(diffs), cluster, counts, formatting))
-    word_features = self_trained_word_features(diffs, first, s1_row, word_scores, SEED)
-    prob = model.predict(assemble(X_base, word_features, cluster, counts, formatting)).astype(np.float32)
+    first = predict(word_scores.features(k["diffs"]))
+    prob = predict(self_trained_word_features(k["diffs"], first, k["s1_row"], word_scores, SEED)).astype(np.float32)
     print(f"{log_prefix}matcher done, two passes ({time.time() - start:.0f}s)", flush=True)
-    return s1_row, pool_row, prob
+    return k["s1_row"], k["pool_row"], prob
 
 
 def score_test(settings):
@@ -119,11 +134,56 @@ def score_test(settings):
     return s1_row, pool_row, prob
 
 
+def _dropped_digit(a, b):
+    return any((len(x) == len(y) + 1 and any(x[:i] + x[i + 1:] == y for i in range(len(x)))) or
+               (len(y) == len(x) + 1 and any(y[:i] + y[i + 1:] == x for i in range(len(y))))
+               for x in a for y in b)
+
+
+def unseen_rows(s1_row):
+    """True for pairs whose S1 entity has a country label that never occurs in training."""
+    s1_ids = load_candidates("test")[0]
+    country = load_source("test", 1, usecols=["entity_id", "country"]).set_index("entity_id").loc[s1_ids, "country"]
+    seen = set(load_source("train", 1, usecols=["country"])["country"])
+    return ~np.isin(country.to_numpy()[s1_row], list(seen))
+
+
+def unseen_number_conflicts(s1_row, pool_row, predicted):
+    """Predicted pairs in countries WITHOUT training labels whose house numbers conflict.
+
+    In the training countries a same-name record at a different house number is
+    still a true copy 58% of the time (the generator scrambles addresses there),
+    so the matcher learned to trust names. In a country it has never seen, a
+    different house number is treated as a different business (a sibling or a
+    namesake) unless it only differs by a dropped digit. Applies to any
+    country label that does not occur in the training data.
+    """
+    s1_ids = load_candidates("test")[0]
+    s1 = load_source("test", 1).set_index("entity_id").loc[s1_ids].reset_index()
+    pool_addr = pd.concat([load_source("test", 2, usecols=["business_address"]),
+                           load_source("test", 3, usecols=["business_address"])],
+                          ignore_index=True)["business_address"].to_numpy()
+    s1_addr = s1["business_address"].to_numpy()
+    unseen = unseen_rows(s1_row)
+    conflict = np.zeros(len(s1_row), dtype=bool)
+    for i in np.flatnonzero(predicted & unseen):
+        a = {t for t in address_tokens(s1_addr[s1_row[i]]) if t.isdigit()}
+        b = {t for t in address_tokens(pool_addr[pool_row[i]]) if t.isdigit()}
+        conflict[i] = bool(a) and bool(b) and not (a & b) and not _dropped_digit(a, b)
+    print(f"unseen-country rule: {conflict.sum():,} predicted pairs with conflicting house numbers removed")
+    return conflict
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--reuse", action="store_true", help="re-use cache/test_scores.npz")
     parser.add_argument("--threshold", type=float, default=None, help="override the tuned threshold")
     parser.add_argument("--out", type=Path, default=OUTPUT_DIR, help="output folder")
+    parser.add_argument("--unseen-strict", action="store_true",
+                        help="in countries without training labels, reject matches whose "
+                             "house numbers conflict")
+    parser.add_argument("--unseen-threshold", type=float, default=None,
+                        help="threshold for countries without training labels")
     args = parser.parse_args()
     start = time.time()
     settings = json.loads((CACHE_DIR / "matcher.json").read_text())
@@ -137,6 +197,10 @@ def main():
     s1_ids, pool_ids = load_candidates("test")[:2]
     s1_country = load_source("test", 1, usecols=["entity_id", "country"]).set_index("entity_id").loc[s1_ids, "country"]
     predicted = prob >= threshold
+    if args.unseen_threshold is not None:
+        predicted = np.where(unseen_rows(s1_row), prob >= args.unseen_threshold, predicted)
+    if args.unseen_strict:
+        predicted &= ~unseen_number_conflicts(s1_row, pool_row, predicted)
     if settings["one_owner_per_record"]:
         predicted = one_owner_per_record(pool_row, prob, predicted)
 
