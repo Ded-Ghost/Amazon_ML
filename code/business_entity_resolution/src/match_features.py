@@ -32,10 +32,11 @@
    while true copies keep the number. So, per country and over the pairs of
    the dataset being scored (no labels), each extra word gets the share of its
    pairs whose house numbers conflict: "midtown", "westgate" ~0.8 (all true
-   match rates 0.0); "dba", "formerly" ~0.00 (true match rates > 0.97). This
-   is computed on the test pairs themselves, so it also covers words of a
-   country never seen in training (US-only model tested on India: 0.934 ->
-   0.948).
+   match rates 0.0); "dba", "formerly" ~0.00 (true match rates > 0.97). The
+   rates become percentiles within the country, so they mean the same in every
+   country. This is computed on the test pairs themselves, so it also covers
+   words of a country never seen in training (unseen-country simulation, both
+   directions: US -> India 0.930 -> 0.944, India -> US 0.943 -> 0.959).
 
 5. Formatting (format_features): whether the raw strings are identical, the
    letter case / accents / symbols of the candidate name, and whether a house
@@ -384,10 +385,14 @@ def format_features(s1_prep, pool_prep, s1_row, pool_row, chunk_size=200_000):
 
 
 def sibling_features(diffs, X_base, country, smooth=20):
-    """Per pair: how often its extra words come with conflicting house numbers (label-free).
+    """Per pair: how sibling-like its extra words are in this country (label-free).
 
-    Rates are computed per country over the given pairs (the dataset being
-    scored), smoothed towards the country's overall conflict share.
+    Each extra word gets the share of its pairs (same country, in the dataset being
+    scored) whose house numbers conflict, smoothed towards the country's overall
+    share. The rates are then turned into percentiles among the country's
+    extra-word occurrences, so the features mean the same in every country. Raw
+    rates did not transfer: numbers conflict in 10% of India's pairs but 17% of
+    the US's, and a model trained on India alone lost 0.025 on the US with them.
     """
     num_s1, num_pool, num_shared = (X_base[:, FEATURES.index(c)] for c in ("num_s1", "num_pool", "num_shared"))
     conflict = (num_s1 > 0) & (num_pool > 0) & (num_shared == 0)
@@ -401,13 +406,21 @@ def sibling_features(diffs, X_base, country, smooth=20):
                 n_conflict[word] += conflict[i]
                 n_agree[word] += agree[i]
         prior = conflict[rows].sum() / max(conflict[rows].sum() + agree[rows].sum(), 1)
+        pair_of, rate = [], []  # one entry per extra-word occurrence, grouped by pair
         for i in rows:
-            extra = diffs[i][0]
-            if extra:
-                rates = [(n_conflict[w] + smooth * prior) / (n_conflict[w] + n_agree[w] + smooth) for w in extra]
-                f["sib_max"][i] = max(rates)
-                f["sib_mean"][i] = sum(rates) / len(rates)
-                f["sib_n_high"][i] = sum(r > 0.5 for r in rates)
+            for w in diffs[i][0]:
+                pair_of.append(i)
+                rate.append((n_conflict[w] + smooth * prior) / (n_conflict[w] + n_agree[w] + smooth))
+        if not rate:
+            continue
+        pair_of, rate = np.array(pair_of), np.array(rate)
+        pct = np.searchsorted(np.sort(rate), rate, side="right") / len(rate)
+        starts = np.flatnonzero(np.r_[True, pair_of[1:] != pair_of[:-1]])
+        sizes = np.diff(np.r_[starts, len(pct)])
+        idx = pair_of[starts]
+        f["sib_max"][idx] = np.maximum.reduceat(pct, starts)
+        f["sib_mean"][idx] = np.add.reduceat(pct, starts) / sizes
+        f["sib_n_high"][idx] = np.add.reduceat((pct > 0.9).astype(np.float64), starts)
     return f
 
 

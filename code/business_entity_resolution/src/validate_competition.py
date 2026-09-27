@@ -53,9 +53,9 @@ def main():
     print(f"prepared {len(val_ids):,} validation + {len(rest_ids):,} other entities "
           f"({time.time() - start:.0f}s)", flush=True)
 
-    s1_row, pool_row, prob = score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers,
-                                         np.vstack([val_cand, rest_cand]), np.vstack([val_score, rest_score]),
-                                         name_counts, settings)
+    s1_row, pool_row, prob, _ = score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers,
+                                            np.vstack([val_cand, rest_cand]), np.vstack([val_score, rest_score]),
+                                            name_counts, settings)
     np.savez(CACHE_DIR / "competition_scores.npz", s1_row=s1_row, pool_row=pool_row, prob=prob)
 
     is_val = s1_row < len(val_ids)

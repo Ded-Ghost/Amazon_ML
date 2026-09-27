@@ -1,0 +1,72 @@
+2,206,821 labelled entities prepared (309s)
+  features for 5,000,033 / 220,680,045 blocking pairs (104s)
+  features for 10,000,119 / 220,680,045 blocking pairs (179s)
+  features for 15,000,139 / 220,680,045 blocking pairs (240s)
+  features for 20,000,139 / 220,680,045 blocking pairs (311s)
+  features for 25,000,183 / 220,680,045 blocking pairs (377s)
+  features for 30,000,268 / 220,680,045 blocking pairs (442s)
+  features for 35,000,268 / 220,680,045 blocking pairs (508s)
+  features for 40,000,268 / 220,680,045 blocking pairs (574s)
+  features for 45,000,362 / 220,680,045 blocking pairs (641s)
+  features for 50,000,380 / 220,680,045 blocking pairs (705s)
+  features for 55,000,477 / 220,680,045 blocking pairs (765s)
+  features for 60,000,547 / 220,680,045 blocking pairs (833s)
+  features for 65,000,580 / 220,680,045 blocking pairs (890s)
+  features for 70,000,646 / 220,680,045 blocking pairs (955s)
+  features for 75,000,680 / 220,680,045 blocking pairs (1012s)
+  features for 80,000,728 / 220,680,045 blocking pairs (1081s)
+  features for 85,000,816 / 220,680,045 blocking pairs (1164s)
+  features for 90,000,880 / 220,680,045 blocking pairs (1230s)
+  features for 95,000,880 / 220,680,045 blocking pairs (1288s)
+  features for 100,000,883 / 220,680,045 blocking pairs (1354s)
+  features for 105,000,974 / 220,680,045 blocking pairs (1410s)
+  features for 110,001,012 / 220,680,045 blocking pairs (1472s)
+  features for 115,001,012 / 220,680,045 blocking pairs (1541s)
+  features for 120,001,092 / 220,680,045 blocking pairs (1603s)
+  features for 125,001,128 / 220,680,045 blocking pairs (1660s)
+  features for 130,001,173 / 220,680,045 blocking pairs (1728s)
+  features for 135,001,173 / 220,680,045 blocking pairs (1788s)
+  features for 140,001,237 / 220,680,045 blocking pairs (1850s)
+  features for 145,001,269 / 220,680,045 blocking pairs (1910s)
+  features for 150,001,269 / 220,680,045 blocking pairs (1977s)
+  features for 155,001,297 / 220,680,045 blocking pairs (2043s)
+  features for 160,001,372 / 220,680,045 blocking pairs (2103s)
+  features for 165,001,372 / 220,680,045 blocking pairs (2162s)
+  features for 170,001,458 / 220,680,045 blocking pairs (2229s)
+  features for 175,001,487 / 220,680,045 blocking pairs (2286s)
+  features for 180,001,538 / 220,680,045 blocking pairs (2344s)
+  features for 185,001,619 / 220,680,045 blocking pairs (2405s)
+  features for 190,001,619 / 220,680,045 blocking pairs (2465s)
+  features for 195,001,705 / 220,680,045 blocking pairs (2538s)
+  features for 200,001,740 / 220,680,045 blocking pairs (2601s)
+  features for 205,001,740 / 220,680,045 blocking pairs (2666s)
+  features for 210,001,762 / 220,680,045 blocking pairs (2731s)
+  features for 215,001,796 / 220,680,045 blocking pairs (2794s)
+  features for 220,001,845 / 220,680,045 blocking pairs (2866s)
+  features for 220,680,045 / 220,680,045 blocking pairs (2877s)
+13,750,507 kept pairs, 7,466,671 true (3268s)
+Training until validation scores don't improve for 50 rounds
+[100]	valid_0's binary_logloss: 0.0501379
+[200]	valid_0's binary_logloss: 0.0440095
+[300]	valid_0's binary_logloss: 0.0421085
+[400]	valid_0's binary_logloss: 0.041198
+[500]	valid_0's binary_logloss: 0.0407041
+[600]	valid_0's binary_logloss: 0.0402563
+[700]	valid_0's binary_logloss: 0.0399426
+[800]	valid_0's binary_logloss: 0.0397226
+[900]	valid_0's binary_logloss: 0.0395014
+[1000]	valid_0's binary_logloss: 0.0393401
+[1100]	valid_0's binary_logloss: 0.0392313
+[1200]	valid_0's binary_logloss: 0.0391316
+[1300]	valid_0's binary_logloss: 0.0390682
+[1400]	valid_0's binary_logloss: 0.0390117
+[1500]	valid_0's binary_logloss: 0.0389512
+[1600]	valid_0's binary_logloss: 0.0389165
+[1700]	valid_0's binary_logloss: 0.0388671
+[1800]	valid_0's binary_logloss: 0.0388351
+[1900]	valid_0's binary_logloss: 0.0388227
+[2000]	valid_0's binary_logloss: 0.0387923
+Early stopping, best iteration is:
+[1979]	valid_0's binary_logloss: 0.0387874
+final matcher: 1979 trees (4065s)
+saved final matcher trained on 2,206,821 entities to C:\Users\KIIT\Downloads\Amazon_ML\code\business_entity_resolution\cache

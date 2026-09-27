@@ -1,12 +1,12 @@
 """Second blocking stage: cheap re-ranking of the blocking candidates.
 
-The TF-IDF search (blocking.py) returns the top 50 S2/S3 records per S1 entity.
+The TF-IDF search (blocking.py) returns the top 100 S2/S3 records per S1 entity.
 Many true matches are in that list but not near the top, so a plain top-K cut
-would lose them. This stage re-orders the 50 with a small model (LightGBM,
+would lose them. This stage re-orders the 100 with a small model (LightGBM,
 31 leaves, a few hundred trees) on the 26 pair features of src/features.py.
-With all 26 features it keeps more true matches with fewer candidates than
-with an 11-feature version (validation: 97.1% of true pairs with 6.1
-candidates per entity, vs 95.4% with 4.7). It keeps
+Validation: 97.7% of true pairs kept with 6.2 candidates per entity (97.1%
+with 6.1 when only the top 50 were re-ranked; 95.4% with 4.7 for an
+11-feature version). It keeps
 
     at most KEEP_MAX candidates per S1 entity, and only those whose
     re-rank probability is >= MIN_PROB

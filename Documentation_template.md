@@ -12,12 +12,13 @@ The pipeline has three stages and is built to find every copy of a business whil
 the candidate set small:
 
 1. **Blocking:** a sparse TF-IDF search over hand-designed "rare keys", run inside each
-   country label, returns a top-50 shortlist per Source 1 entity. The keys are name
+   country label, returns a top-100 shortlist per Source 1 entity (200 for France and
+   India in the final version). The keys are name
    words, phonetic skeletons, unordered skeleton pairs, glued names, and address words
    and bigrams.
 2. **Re-ranking:** a small LightGBM cuts the shortlist to at most 10 candidates, about
-   6.8 per entity on the test set. These are the final candidate set.
-3. **Matching:** a LightGBM matcher scores the candidates using 57 language-neutral
+   7.1 per entity on the test set. These are the final candidate set.
+3. **Matching:** a LightGBM matcher scores the candidates using 60 language-neutral
    features, with a decision rule tuned for macro F0.5 under the same "every owner
    present" conditions as the test set.
 
@@ -31,13 +32,16 @@ The main ideas behind the result:
   address, how common each differing word is, and house-number distance. These
   resolve name-only records, trade names and neighbouring businesses.
 - **Robustness to the unseen country (France):** word dropout during training,
-  self-training of unknown-word scores on the unlabeled test pairs, and generic
-  normalisation of dotted legal forms ("S.A.S." → "sas").
+  self-training of unknown-word scores on the unlabeled test pairs, generic
+  normalisation of dotted legal forms ("S.A.S." → "sas"), and **label-free
+  sibling-word features** computed on the test pairs themselves (validated by training
+  on one country and testing on the other, in both directions).
 - **Owner competition:** each S2/S3 record goes to at most one S1 entity, and the
   threshold is tuned with all training owners competing.
 
 Held-out validation score, measured with all owners competing, as on the test set:
-**macro F0.5 = 0.9791**. Public leaderboard: 0.965 for v4 (see the table in Section 5 for later versions).
+**macro F0.5 = 0.9797** (US and India; final version v13 uses the same models). Public leaderboard: **0.976** (final
+version v13); see the table in Section 5 for every version.
 
 ---
 
@@ -116,7 +120,9 @@ decision rule is tuned under full owner competition (Section 4).
 - **Weighting:** keys are hashed into sparse matrices and weighted by IDF within each
   country's S2+S3 pool. Keys found in more than 5,000 records are dropped.
 - **Scoring:** TF-IDF cosine, computed as one sparse matrix product per chunk. The
-  top 50 records are kept per S1 entity.
+  top 100 records are kept per S1 entity, and all 100 go to the re-ranker. In the final
+  version the lists of France and India are 200 deep (Section 5): the test set is more
+  crowded than the training data, so true copies sit deeper in the ranking.
 
 **Stage 2: learned re-ranker** (`src/rerank.py`):
 - **Model:** LightGBM, 31 leaves, about 360 trees, on the 26 pair features.
@@ -124,8 +130,9 @@ decision rule is tuned under full owner competition (Section 4).
   probability ≥ **0.005**.
 - **Output:** the kept pairs are `candidate_pairs.tsv`, and the matcher runs only on them.
 
-- **Candidate pairs generated:** 11,741,382 on the test set, **6.8 per S1
-  entity**, from 86.6M in the stage-1 top-50.
+- **Candidate pairs generated:** 12,244,224 on the test set, **7.1 per S1
+  entity**, from about 280M stage-1 pairs (top 100 for the US, top 200 for France and
+  India).
 - **How we ensured true matches were not lost:** pair recall and the oracle F0.5 (a
   perfect matcher restricted to the candidates) were measured on validation after every
   change (`reports/blocking_experiments.md`, `reports/candidate_size_experiments.md`):
@@ -137,7 +144,8 @@ decision rule is tuned under full owner competition (Section 4).
 | + TF-IDF cosine, max_df 5000 | 50 | 0.965 | 0.987 |
 | + Indian-script dictionary | 50 | 0.974 | 0.992 |
 | TF-IDF top 10 only (no re-ranker) | 10 | 0.920 | 0.974 |
-| **+ 26-feature re-ranker, ≤10 & p≥0.005 (final)** | **6.1** | **0.971** | **0.991** |
+| + 26-feature re-ranker on the top 50, ≤10 & p≥0.005 (v4–v9) | 6.1 | 0.971 | 0.991 |
+| **+ re-ranker on all 100 blocking candidates, ≤10 & p≥0.005 (final, v10)** | **6.2** | **0.977** | **0.993** |
 
 We tried three ideas that didn't make it:
 - **Separate name and address passes:** no better than one combined pass.
@@ -151,7 +159,7 @@ We tried three ideas that didn't make it:
 
 ## 4. Matching Model
 
-**Features used** (57 per candidate pair, `src/features.py` and `src/match_features.py`;
+**Features used** (60 per candidate pair, `src/features.py` and `src/match_features.py`;
 rapidfuzz `cpdist`, parallel):
 
 - **Name features (14):**
@@ -181,6 +189,14 @@ rapidfuzz `cpdist`, parallel):
   - how many pool records share the name or address;
   - how common each differing word is (one-off words vs branch words);
   - the smallest house-number distance.
+- **Sibling words, label-free (3):** the generator places sibling businesses
+  ("... Midtown", "... Développement") at a *different* house number, while true copies
+  keep it. For each country, over the pairs of the dataset being scored (no labels), each
+  word a candidate adds to the S1 name gets the share of its pairs whose house numbers
+  conflict ("midtown" ≈ 0.8, "dba" ≈ 0.0). The rates are turned into **percentiles within
+  the country**, so they mean the same everywhere: raw rates did not transfer (conflicting
+  numbers are 10% of India's pairs but 17% of the US's). Features: max, mean, and number
+  of words above the 90th percentile.
 - **Formatting (7):** raw strings identical, letter case, accents, symbols, a house
   number differing only by a dropped digit (826 → 26), and name-length difference.
 - **Other:** empty-address flag, S2 vs S3. The country label is **never** a feature.
@@ -189,30 +205,60 @@ rapidfuzz `cpdist`, parallel):
 pretrained models, no external data):
 - 127 leaves, learning rate 0.1, feature/bagging fraction 0.8, deterministic, seed 42;
 - settings chosen on the 300k-entity sample;
-- **final model fitted on all 2,206,821 labelled entities** (13.4M pairs;
+- **final model fitted on all 2,206,821 labelled entities** (13.75M pairs, 1,979 trees;
   each doubling of the training data added ~+0.001 F0.5).
 
 **Unseen country (France):**
 - **Self-training for unknown words:** at prediction time the matcher runs twice.
   Words never seen in training get scores learned from confident first-pass
   predictions (p ≥ 0.9 / ≤ 0.1, cross-fitted by entity halves; one round).
-- **Proxy test:** on validation, with all word scores hidden (simulating a new
-  language), F0.5 is 0.9773 without self-training and 0.9781 with it, against 0.9782
-  normally. Training on US only and testing on India, the model loses 0.048 in the new
-  country. That is why generic safeguards matter.
-- **Optional rule for countries without training labels (`predict.py --unseen-strict --unseen-threshold`): reject matches whose house numbers conflict (no shared number, not a dropped digit) and use a separate threshold. In the training countries a same-name record at a different address identity is still a true copy 58.5% of the time, but in an unseen country it is mostly a namesake or sibling. It is kept as an option; its effect on the unseen country can only be measured on the leaderboard.**
+- **Proxy test (new language):** on validation, with all word scores hidden, F0.5 is
+  0.9775 without self-training and 0.9778 with it, against 0.9780 normally.
+- **Cross-country simulation (new country):** we train on one training country and test
+  on the other's validation entities, in both directions. This is how every
+  France-targeted change was accepted or rejected:
+
+  | Setup (F0.5 on the unseen country, threshold 0.675) | US → India | India → US |
+  |---|---|---|
+  | no sibling features | 0.9296 | 0.9429 |
+  | raw sibling rates (rejected: fails one direction) | 0.9430 | 0.9181 |
+  | **percentile sibling rates (final)** | **0.9435** | **0.9587** |
+  | + full self-training with pseudo-labels (reference; ~2 h on the full data) | 0.9455 | 0.9622 |
+  | **+ adaptation: 100 more trees on the country's own confident predictions (final)** | **0.9441** | **0.9621** |
+
+- **Adaptation to the unseen country** (`predict.py --unseen-adapt`): after the two
+  passes, the trained matcher gets 100 more trees fitted only on the unseen country's own
+  confident predictions (p ≥ 0.9 → match, ≤ 0.1 → no match; no labels), cross-fitted by
+  S1-entity halves so that no pair learns from its own pseudo-label. As good as full
+  retraining with pseudo-labels in the simulation, for about one minute of compute.
+  On the test set it changes 3.8% of French entities and nothing else.
+
+- **House-number rule for countries without training labels** (`predict.py
+  --unseen-strict`): a match whose house numbers conflict (no shared number, not a
+  dropped digit) is rejected. In the training countries a same-name record at a
+  different house number is still a true copy 58.5% of the time, but on the test set
+  France has 5× more "same name, different number" candidates per entity than the US
+  (0.48 vs 0.09): chains of namesakes such as "Nantes Sportive SARL" at four addresses
+  in one city. The rule raised the leaderboard score from 0.968 to 0.969 (v6) and is
+  part of the final submission. It applies to any country label absent from training.
+- **Checked and rejected for France:** a "same street" rule. France's extra
+  street-name differences among accepted matches are typos (6.4% vs 2.3% in the US),
+  which are 99.9% true copies in the US/India validation data.
 
 **Threshold selection method:**
 - a probability threshold, plus the **one-owner rule**: a record predicted for several
   S1 entities goes to the most probable one;
 - the threshold is tuned on validation **with all 1.9M validation + other training
-  entities competing** (as on the test set): **0.675 (0.70 on the validation split alone)**.
+  entities competing** (as on the test set): **0.65 (0.675 on the validation split alone;
+  0.65 and 0.675 tie at 0.9789)**.
 
 ---
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** **0.9791** on validation under full owner competition.
+- **F_0.5 Score (macro):** **0.9797** on validation (US 0.9806, India 0.9783; singletons
+  0.9792). The K = 50 version scored 0.9780 on the same split and 0.9789 under full owner
+  competition. France has no labels; see Section 4 for how it was validated.
 
 | Version | Main change | Validation F0.5 | Leaderboard |
 |---|---|---|---|
@@ -221,7 +267,14 @@ pretrained models, no external data):
 | v3 | + Indian-script dictionary, word-difference and cluster features | 0.9673 | 0.952 |
 | v4 | + 26-feature re-ranker (≤10), name counts, word dropout, self-training | 0.9758 | 0.965 |
 | v5 | + address counts, formatting, competition threshold, fit on all data | 0.9781 (competition 0.9789) | not submitted |
-| v6 | + dotted-acronym normalisation | 0.9782 (competition 0.9791) | pending |
+| v6 | + dotted-acronym normalisation | 0.9782 (competition 0.9791) | 0.968 |
+| v6 + rule | + house-number rule for countries without training labels | same (rule only affects France) | 0.969 |
+| v7 | + raw sibling-word rates | 0.9781 | not submitted (failed the India → US check) |
+| v8 | + percentile sibling-word rates, with the house-number rule | 0.9780 (competition 0.9789) | not submitted |
+| v9 | + adaptation to the unseen country (France only) | same (only France changes) | 0.969 |
+| v10 | + all 100 blocking candidates to the re-ranker (was 50) | 0.9797 | 0.975 |
+| v11 | + blocking depth 200 for countries without training labels (France) | same | 0.975 |
+| **v13 (final)** | **+ blocking depth 200 for India** | **same models** | **0.976** |
 
 - **Common false positives (wrong merges):**
   - decoys placed next to real copies: near-identical typo variants at the same address
@@ -233,7 +286,7 @@ pretrained models, no external data):
     time, because the generator makes name-only decoys;
   - **copies never reaching the candidate set:** about 3%, mostly garbled names or
     trade names with partial addresses.
-  - A perfect matcher on our candidates would score 0.991.
+  - A perfect matcher on our candidates would score 0.993 (validation).
 
 ---
 
@@ -249,6 +302,11 @@ tuning models:
 
 Validation rose from 0.955 to 0.979. The candidate set stays small, about 6–7 records
 per business instead of 50.
+
+On the leaderboard the France-targeted changes of v8/v9 (validated by the cross-country
+simulation) left the rounded score at 0.969: their effect on the real unseen country was
+below the leaderboard's 0.001 resolution. Training countries are measured precisely;
+the unseen country can only be approximated.
 
 The remaining loss is mostly:
 - name-only records, which are only ~60% reliable even with a unique exact name;
@@ -274,7 +332,9 @@ in this order (full commands in its `README.md`; the data folder is set with
 | Re-ranker + matcher on the sample, tuning | `python -m src.train_matcher` | `cache/reranker.txt`, `matcher.*`, `word_scores.json` | 30 min |
 | Threshold under full owner competition | `python -m src.validate_competition` | threshold in `cache/matcher.json` | 40 min |
 | Final matcher on all labelled entities | `python -m src.train_final` | `cache/matcher.txt`, `word_scores.json` | 65 min |
-| Test prediction | `python -m src.predict` | `output/matching_results.tsv`, `output/candidate_pairs.tsv` | 40 min |
+| Test prediction (France lists 200 deep, adaptation, house-number rule) | `python -m src.predict --unseen-adapt --unseen-strict --threshold 0.675 --unseen-k 200` | `cache/test_scores.npz` | 85 min |
+| India lists 200 deep (re-scores India only) | `python -m src.rescore_unseen --k 200 --countries India --base cache/v11_test_scores.npz` (after copying the scores of the previous step to that file) | `cache/test_scores.npz` | 60 min |
+| Final files | `python -m src.predict --reuse --unseen-adapt --unseen-strict --threshold 0.675` | `output/matching_results.tsv`, `output/candidate_pairs.tsv` | 2 min |
 
 \*16 logical cores, 32 GB RAM.
 
@@ -288,8 +348,10 @@ All logs are in `code/business_entity_resolution/reports/`:
 - `eda_report.txt`: full exploratory analysis.
 - `blocking_experiments.md` and `candidate_size_experiments.md`: blocking and candidate-set
   experiments.
-- `improvement_experiments.md`: every feature and training experiment from v3 to v6
-  (gains, the France investigation, rejected ideas).
+- `improvement_experiments.md`: every feature and training experiment from v3 to v8
+  (gains, the France investigation, the leaderboard audit with error buckets, and the
+  hypotheses we tested and rejected: leaks, copy quotas, same-source structure,
+  per-entity decision rules, noise artefacts, edit types, namesake evidence).
 - `blocking_*.txt`: recall tables.
 - `train_matcher*.txt`, `validate_competition*.txt`, `train_final*.txt`: training and
   tuning logs, including threshold tables and feature importances.

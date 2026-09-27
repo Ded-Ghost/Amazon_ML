@@ -1,0 +1,5 @@
+  blocked France: 259,452 S1 vs 1,434,993 pool records
+259,452 S1 records re-blocked to depth 300 (91s)
+  features for 5,000,151 / 77,413,779 blocking pairs (74s)
+  features for 10,000,436 / 77,413,779 blocking pairs (141s)
+  features for 15,000,611 / 77,413,779 blocking pairs (197s)

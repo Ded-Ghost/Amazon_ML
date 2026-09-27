@@ -5,8 +5,11 @@ describe the same real-world business (zero, one or many). Scored with
 macro-averaged F0.5 per Source 1 entity (singletons included).
 
 **Result:**
-- **Validation:** macro F0.5 = **0.9791** on our held-out split (20% of the training
-  S1 entities, scored with all training owners competing, as on the test set).
+- **Validation:** macro F0.5 = **0.9797** on our held-out split (20% of the training
+  S1 entities; US 0.9806, India 0.9783). With all training owners competing (measured
+  for the previous K = 50 version): 0.9789.
+- **Unseen country:** checked by training on one country and testing on the other, in
+  both directions (see `reports/improvement_experiments.md`).
 - **Candidates:** about 6.8 per S1 entity (at most 10).
 - **Leaderboard:** see `reports/`.
 
@@ -22,7 +25,7 @@ code/business_entity_resolution/
 │   ├── output_writer.py       writes matching_results.tsv + candidate_pairs.tsv (format checks)
 │   ├── normalize.py           text cleaning, phonetic "skeleton" keys
 │   ├── transliteration.py     Indian-script -> Latin word dictionary learned from training pairs
-│   ├── blocking.py            stage 1: rare-key TF-IDF search per country (top 50)
+│   ├── blocking.py            stage 1: rare-key TF-IDF search per country (top 100)
 │   ├── run_blocking.py        runs blocking for train / val / rest / test
 │   ├── features.py            26 pair features (names, addresses, numbers, blocking)
 │   ├── rerank.py              stage 2: re-ranker keeps <= 10 candidates (the final candidate set)
@@ -67,7 +70,7 @@ sleep during the long steps.
 # 0. word dictionary for Indian-script names (learned from the 80% training half)
 python -m src.transliteration              # ~3 min  -> cache/transliteration.tsv
 
-# 1. stage-1 blocking (top 50 per S1 entity)
+# 1. stage-1 blocking (top 100 per S1 entity)
 python -m src.run_blocking --split train   # ~3 min  300k-entity sample used to develop the models
 python -m src.run_blocking --split val     # ~4 min  20% validation half (+ recall table)
 python -m src.run_blocking --split rest    # ~10 min other training entities (competition + final fit)
@@ -82,9 +85,21 @@ python -m src.validate_competition         # ~40 min -> threshold in cache/match
 # 4. final matcher refitted on all labelled entities (same settings)
 python -m src.train_final                  # ~60 min -> cache/matcher.txt, word_scores.json
 
-# 5. test predictions and both submission files
-python -m src.predict                      # ~40 min -> <root>/output/matching_results.tsv
-                                           #            <root>/output/candidate_pairs.tsv
+# 5. test predictions and both submission files (as submitted: for countries without
+#    training labels, the matcher is adapted to the country's own confident predictions
+#    and the house-number rule is applied)
+python -m src.predict --unseen-adapt --unseen-strict --threshold 0.675 --unseen-k 200
+                                           # ~85 min, blocking lists of countries without
+                                           # training labels deepened to 200
+cp cache/test_scores.npz cache/v11_test_scores.npz
+# 6. deeper blocking lists (200) for India too: re-scores only India's S1 records and keeps
+#    the other countries' scores (records never match across countries), ~60 min
+python -m src.rescore_unseen --k 200 --countries India --base cache/v11_test_scores.npz
+python -m src.predict --reuse --unseen-adapt --unseen-strict --threshold 0.675
+                                           # -> <root>/output/matching_results.tsv
+                                           #    <root>/output/candidate_pairs.tsv
+# (the threshold is given explicitly because step 3 was not rerun for K = 100:
+#  the validation curve is flat from 0.675 to 0.775, and step 3 chose 0.65-0.675 for K = 50)
 ```
 
 `run_blocking --split test` also writes a provisional `candidate_pairs.tsv` and an
@@ -115,9 +130,10 @@ python -m src.baseline_empty   # "predict nothing" baseline (score floor)
    - Inside each country label, records are described by rare keys: name words,
      skeletons, unordered skeleton pairs, glued names, and address words and bigrams.
    - Keys are IDF-weighted, keys found in more than 5,000 records are dropped, and the
-     top 50 S2/S3 records by TF-IDF cosine are kept.
+     top 100 S2/S3 records by TF-IDF cosine are kept (all 100 go to the re-ranker).
 3. **Re-ranking** (`rerank.py`):
-   - A small LightGBM on the 26 pair features keeps at most 10 candidates with
+   - A small LightGBM on the 26 pair features of all 100 blocking candidates keeps at
+     most 10 candidates with
      probability >= 0.005.
    - These are the final candidate set (`candidate_pairs.tsv`); the matcher scores only
      them.
@@ -147,8 +163,14 @@ python -m src.baseline_empty   # "predict nothing" baseline (score floor)
      probable S1 entity only (one owner per record, as in the training data).
    - The threshold is tuned on validation with all training owners competing
      (`validate_competition.py`).
-   Optional, for countries without training labels: `--unseen-strict` rejects matches
-   whose house numbers conflict, and `--unseen-threshold T` uses a separate threshold.
+   - For countries without training labels (`--unseen-adapt`, used for the submission),
+     the matcher gets 100 more trees fitted on the country's own confident predictions
+     (p ≥ 0.9 / ≤ 0.1, cross-fitted by entity halves, no labels).
+   - For countries without training labels (`--unseen-strict`, used for the submission),
+     a match whose house numbers conflict is rejected unless the numbers differ only by
+     a dropped digit. In France, same-name records at other house numbers are mostly
+     namesakes (5× more frequent per entity than in the US). `--unseen-threshold T` sets
+     a separate threshold (not used).
 
 Validate the submission (from `student_resource/`):
 

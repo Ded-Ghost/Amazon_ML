@@ -5,7 +5,7 @@
 Needs cache/candidates_train.npz and cache/candidates_val.npz
 (python -m src.run_blocking --split train / --split val).
 
-1. Features for the top-50 blocking candidates of every S1 entity
+1. Features for the top-100 blocking candidates of every S1 entity
    (src/features.py). Label = 1 if the candidate is in the ground truth.
 2. Re-ranker (src/rerank.py): a small LightGBM on the 26 pair features keeps at
    most KEEP_MAX candidates per entity. These are the final candidates.
@@ -44,7 +44,8 @@ from .metrics import macro_f05, score_report
 from .rerank import KEEP_MAX, MIN_PROB, keep_mask, rerank_probability, train_reranker
 from .run_blocking import load_candidates
 
-K = 50  # blocking candidates per S1 entity given to the re-ranker
+K = 100  # blocking candidates per S1 entity given to the re-ranker (all that blocking keeps;
+         # 50 -> 100: pair recall 0.9712 -> 0.9774, validation F0.5 0.9780 -> 0.9797)
 THRESHOLDS = np.round(np.arange(0.30, 0.96, 0.025), 3)
 LGB_PARAMS = {
     "objective": "binary", "learning_rate": 0.1, "num_leaves": 127,

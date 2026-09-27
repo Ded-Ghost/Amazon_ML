@@ -1,0 +1,11 @@
+unseen-country rule: 29,534 predicted pairs with conflicting house numbers removed
+
+per S1 entity, by country:
+         entities  candidates_mean  matches_mean  share_no_match
+country                                                         
+France     259452            8.777         3.048           0.066
+India      809986            6.652         3.304           0.059
+US         663106            6.544         3.364           0.057
+total candidate pairs: 12,005,382 (6.93 per S1 entity)
+
+threshold 0.675: wrote ..\..\output_variants\v10_noadapt\matching_results.tsv and candidate_pairs.tsv in 87s

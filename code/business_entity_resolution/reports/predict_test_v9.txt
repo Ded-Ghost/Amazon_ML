@@ -1,0 +1,32 @@
+records prepared in 197s
+  features for 5,000,039 / 86,625,810 blocking pairs (106s)
+  features for 10,000,057 / 86,625,810 blocking pairs (217s)
+  features for 15,000,077 / 86,625,810 blocking pairs (300s)
+  features for 20,000,112 / 86,625,810 blocking pairs (378s)
+  features for 25,000,135 / 86,625,810 blocking pairs (458s)
+  features for 30,000,153 / 86,625,810 blocking pairs (536s)
+  features for 35,000,172 / 86,625,810 blocking pairs (619s)
+  features for 40,000,200 / 86,625,810 blocking pairs (709s)
+  features for 45,000,243 / 86,625,810 blocking pairs (792s)
+  features for 50,000,254 / 86,625,810 blocking pairs (876s)
+  features for 55,000,277 / 86,625,810 blocking pairs (964s)
+  features for 60,000,308 / 86,625,810 blocking pairs (1041s)
+  features for 65,000,338 / 86,625,810 blocking pairs (1132s)
+  features for 70,000,379 / 86,625,810 blocking pairs (1208s)
+  features for 75,000,422 / 86,625,810 blocking pairs (1287s)
+  features for 80,000,436 / 86,625,810 blocking pairs (1361s)
+  features for 85,000,454 / 86,625,810 blocking pairs (1453s)
+  features for 86,625,810 / 86,625,810 blocking pairs (1487s)
+matcher done, two passes (1955s)
+adapted to countries without training labels: 2,209,786 pairs (2027s)
+unseen-country rule: 30,481 predicted pairs with conflicting house numbers removed
+
+per S1 entity, by country:
+         entities  candidates_mean  matches_mean  share_no_match
+country                                                         
+France     259452            8.517         2.996           0.069
+India      809986            6.474         3.285           0.059
+US         663106            6.467         3.345           0.058
+total candidate pairs: 11,741,382 (6.78 per S1 entity)
+
+threshold 0.65: wrote ..\..\output_variants\v8_strict_rerun\matching_results.tsv and candidate_pairs.tsv in 2457s

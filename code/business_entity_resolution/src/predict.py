@@ -9,14 +9,17 @@ and only re-applies the decision rule, e.g. to try another threshold.
 Needs cache/candidates_test.npz (run_blocking --split test) and the models
 from train_matcher (cache/reranker.txt, matcher.txt, matcher.json).
 
-For the top-50 blocking candidates of each S1 entity: compute features, let
+For the top-K (100) blocking candidates of each S1 entity: compute features, let
 the re-ranker keep at most KEEP_MAX of them, add the word, cluster and count
 features (src/match_features.py) and run the matcher on those, in two passes:
 pass 1 uses the word scores learned in training; words never seen in training
 (mostly French) then get scores from confident pass-1 predictions
 (self-training, no labels), and pass 2 gives the final probabilities.
-Writes output/matching_results.tsv and output/candidate_pairs.tsv, where
-candidate_pairs.tsv holds exactly the candidates the matcher scored.
+For countries without training labels the matcher is then adapted to the
+country's own confident pass-2 predictions (adapt_to_unseen; used with
+--unseen-adapt). Writes output/matching_results.tsv and
+output/candidate_pairs.tsv, where candidate_pairs.tsv holds exactly the
+candidates the matcher scored.
 """
 import argparse
 import json
@@ -27,17 +30,20 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
+from .blocking import generate_candidates
 from .config import CACHE_DIR, OUTPUT_DIR, SEED
 from .data import load_source
 from .features import (add_core_names, build_pairs, compute_features, entity_chunks,
                        frequent_name_words, prepare_records, refresh_context_features)
-from .match_features import (NameCounts, WordScores, assemble, cluster_features, format_features, sibling_features,
-                             self_trained_word_features, word_differences)
+from .match_features import (PSEUDO_HIGH, PSEUDO_LOW, NameCounts, WordScores, assemble, cluster_features,
+                             format_features, self_trained_word_features, sibling_features, word_differences)
 from .normalize import address_tokens
 from .output_writer import write_submission
 from .rerank import keep_mask, rerank_probability
 from .run_blocking import load_candidates
-from .train_matcher import one_owner_per_record
+from .train_matcher import LGB_PARAMS, one_owner_per_record
+
+ADAPT_TREES, ADAPT_LEARNING_RATE = 100, 0.05
 
 
 def load_models():
@@ -86,9 +92,34 @@ def kept_candidate_features(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, 
     }
 
 
+def adapt_to_unseen(model, X, prob, s1_row, unseen, seed=SEED):
+    """Probabilities for pairs of countries without training labels, after adapting the matcher.
+
+    The trained matcher gets ADAPT_TREES more trees fitted on the country's own
+    confident predictions (prob >= PSEUDO_HIGH -> match, <= PSEUDO_LOW -> no
+    match; no labels). Cross-fitted by S1-entity halves: the trees used for one
+    half are learned on the other half only. Tested by training on one training
+    country and scoring the other: US -> India +0.0006, India -> US +0.0034.
+    """
+    rows = np.flatnonzero(unseen)
+    out = prob.copy()
+    if len(rows) == 0:
+        return out
+    half = (np.random.default_rng(seed).random(s1_row.max() + 1) < 0.5)[s1_row[rows]]
+    confident = (prob[rows] >= PSEUDO_HIGH) | (prob[rows] <= PSEUDO_LOW)
+    params = dict(LGB_PARAMS, learning_rate=ADAPT_LEARNING_RATE)
+    for side in (False, True):
+        learn = rows[confident & (half == side)]
+        booster = lgb.train(params, lgb.Dataset(X[learn], (prob[learn] >= PSEUDO_HIGH).astype(np.float32)),
+                            num_boost_round=ADAPT_TREES, init_model=model, keep_training_booster=True)
+        out[rows[half != side]] = booster.predict(X[rows[half != side]])
+    return out
+
+
 def score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_counts, settings,
-                log_prefix=""):
-    """Final candidate pairs (s1_row, pool_row) and their match probabilities.
+                log_prefix="", train_countries=None):
+    """Final candidate pairs (s1_row, pool_row), their match probabilities, and the
+    probabilities after adapting to countries without training labels (train_countries given).
 
     Used for the test set and for the full-competition validation. The matcher
     runs in two passes with self-training for words never seen in training.
@@ -99,24 +130,55 @@ def score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers, cand, score, name_
                                 settings, reranker, log_prefix)
     k["counts"].update(sibling_features(k["diffs"], k["X_base"], s1_prep["country"].to_numpy()[k["s1_row"]]))
 
-    def predict(word_features):
-        return model.predict(assemble(k["X_base"], word_features, k["cluster"], k["counts"], k["formatting"]))
+    def matrix(word_features):
+        return assemble(k["X_base"], word_features, k["cluster"], k["counts"], k["formatting"])
 
     # pass 1 with the training word scores; then words never seen in training
     # (mostly French) get scores from confident pass-1 predictions (self-training)
-    first = predict(word_scores.features(k["diffs"]))
-    prob = predict(self_trained_word_features(k["diffs"], first, k["s1_row"], word_scores, SEED)).astype(np.float32)
+    first = model.predict(matrix(word_scores.features(k["diffs"])))
+    X = matrix(self_trained_word_features(k["diffs"], first, k["s1_row"], word_scores, SEED))
+    prob = model.predict(X).astype(np.float32)
     print(f"{log_prefix}matcher done, two passes ({time.time() - start:.0f}s)", flush=True)
-    return k["s1_row"], k["pool_row"], prob
+    adapted = prob
+    if train_countries is not None:
+        unseen = ~np.isin(s1_prep["country"].to_numpy()[k["s1_row"]], list(train_countries))
+        adapted = adapt_to_unseen(model, X, prob, k["s1_row"], unseen).astype(np.float32)
+        print(f"{log_prefix}adapted to countries without training labels: {unseen.sum():,} pairs "
+              f"({time.time() - start:.0f}s)", flush=True)
+    return k["s1_row"], k["pool_row"], prob, adapted
 
 
-def score_test(settings):
+def deepen_unseen(s1_df, pool, cand, score, train_countries, top_k):
+    """Blocking lists of depth top_k for S1 records of countries without training labels.
+
+    In those countries the TF-IDF ranking is less reliable: generic names put many
+    namesakes ahead of the true copies (on the test set, France's accepted matches
+    still come from ranks 90-99 five times as often as in the US or India). Their
+    lists are re-blocked deeper; the other rows keep their lists. The ranking is
+    deterministic, so the first columns are unchanged.
+    """
+    wide_cand = np.full((len(cand), top_k), -1, dtype=np.int32)
+    wide_score = np.zeros((len(cand), top_k), dtype=np.float32)
+    wide_cand[:, :cand.shape[1]], wide_score[:, :cand.shape[1]] = cand, score
+    unseen = ~s1_df["country"].isin(train_countries).to_numpy()
+    if unseen.any():
+        wide_cand[unseen], wide_score[unseen] = generate_candidates(s1_df[unseen], pool, top_k)
+    return wide_cand, wide_score
+
+
+def score_test(settings, unseen_k=None):
     """Final candidate pairs of the test set and their match probabilities."""
     start = time.time()
     s1_ids, pool_ids, cand, score = load_candidates("test")
     s1_df = load_source("test", 1).set_index("entity_id").loc[s1_ids].reset_index()
     pool = pd.concat([load_source("test", 2), load_source("test", 3)], ignore_index=True)
     assert (pool["entity_id"].to_numpy() == pool_ids).all(), "pool order differs from blocking"
+    train_countries = set(load_source("train", 1, usecols=["country"])["country"])
+    if unseen_k and unseen_k > settings["K"]:
+        cand, score = deepen_unseen(s1_df, pool, cand, score, train_countries, unseen_k)
+        settings = dict(settings, K=unseen_k)
+        print(f"countries without training labels: blocking lists deepened to {unseen_k} "
+              f"({time.time() - start:.0f}s)", flush=True)
 
     # frequent name words are learned from the test pool itself (any country, incl. new ones)
     pool_prep, pool_numbers = prepare_records(pool)
@@ -128,10 +190,11 @@ def score_test(settings):
     print(f"records prepared in {time.time() - start:.0f}s", flush=True)
 
     name_counts = NameCounts(s1_prep, pool_prep)  # over ALL test S1 records and the test pool
-    s1_row, pool_row, prob = score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers,
-                                         cand, score, name_counts, settings)
-    np.savez(CACHE_DIR / "test_scores.npz", s1_row=s1_row, pool_row=pool_row, prob=prob)
-    return s1_row, pool_row, prob
+    s1_row, pool_row, prob, adapted = score_pairs(s1_prep, s1_numbers, pool_prep, pool_numbers,
+                                                  cand, score, name_counts, settings,
+                                                  train_countries=train_countries)
+    np.savez(CACHE_DIR / "test_scores.npz", s1_row=s1_row, pool_row=pool_row, prob=prob, adapted=adapted)
+    return s1_row, pool_row, prob, adapted
 
 
 def _dropped_digit(a, b):
@@ -184,6 +247,10 @@ def main():
                              "house numbers conflict")
     parser.add_argument("--unseen-threshold", type=float, default=None,
                         help="threshold for countries without training labels")
+    parser.add_argument("--unseen-adapt", action="store_true",
+                        help="use the probabilities adapted to countries without training labels")
+    parser.add_argument("--unseen-k", type=int, default=None,
+                        help="blocking depth for countries without training labels (default: K)")
     args = parser.parse_args()
     start = time.time()
     settings = json.loads((CACHE_DIR / "matcher.json").read_text())
@@ -192,8 +259,11 @@ def main():
     if args.reuse:
         z = np.load(CACHE_DIR / "test_scores.npz")
         s1_row, pool_row, prob = z["s1_row"], z["pool_row"], z["prob"]
+        adapted = z["adapted"] if "adapted" in z else prob
     else:
-        s1_row, pool_row, prob = score_test(settings)
+        s1_row, pool_row, prob, adapted = score_test(settings, args.unseen_k)
+    if args.unseen_adapt:
+        prob = adapted
     s1_ids, pool_ids = load_candidates("test")[:2]
     s1_country = load_source("test", 1, usecols=["entity_id", "country"]).set_index("entity_id").loc[s1_ids, "country"]
     predicted = prob >= threshold

@@ -1,3 +1,56 @@
-prepared 441,364 validation + 1,465,457 other entities (338s)
-  features for 5,000,000 / 95,340,780 blocking pairs (129s)
-  features for 10,000,000 / 95,340,780 blocking pairs (241s)
+prepared 441,364 validation + 1,465,457 other entities (427s)
+  features for 5,000,000 / 95,340,780 blocking pairs (109s)
+  features for 10,000,000 / 95,340,780 blocking pairs (190s)
+  features for 15,000,035 / 95,340,780 blocking pairs (279s)
+  features for 20,000,064 / 95,340,780 blocking pairs (369s)
+  features for 25,000,064 / 95,340,780 blocking pairs (453s)
+  features for 30,000,064 / 95,340,780 blocking pairs (536s)
+  features for 35,000,064 / 95,340,780 blocking pairs (624s)
+  features for 40,000,097 / 95,340,780 blocking pairs (701s)
+  features for 45,000,113 / 95,340,780 blocking pairs (786s)
+  features for 50,000,136 / 95,340,780 blocking pairs (875s)
+  features for 55,000,136 / 95,340,780 blocking pairs (976s)
+  features for 60,000,182 / 95,340,780 blocking pairs (1070s)
+  features for 65,000,229 / 95,340,780 blocking pairs (1159s)
+  features for 70,000,229 / 95,340,780 blocking pairs (1257s)
+  features for 75,000,274 / 95,340,780 blocking pairs (1325s)
+  features for 80,000,306 / 95,340,780 blocking pairs (1400s)
+  features for 85,000,334 / 95,340,780 blocking pairs (1462s)
+  features for 90,000,334 / 95,340,780 blocking pairs (1538s)
+  features for 95,000,380 / 95,340,780 blocking pairs (1608s)
+  features for 95,340,780 / 95,340,780 blocking pairs (1613s)
+matcher done, two passes (2025s)
+
+ threshold  val only (as before)  with full competition
+     0.300                0.9717                 0.9756
+     0.325                0.9726                 0.9761
+     0.350                0.9734                 0.9765
+     0.375                0.9741                 0.9768
+     0.400                0.9747                 0.9772
+     0.425                0.9753                 0.9775
+     0.450                0.9757                 0.9777
+     0.475                0.9762                 0.9780
+     0.500                0.9766                 0.9782
+     0.525                0.9770                 0.9784
+     0.550                0.9773                 0.9786
+     0.575                0.9775                 0.9787
+     0.600                0.9777                 0.9788
+     0.625                0.9778                 0.9788
+     0.650                0.9780                 0.9789
+     0.675                0.9780                 0.9789
+     0.700                0.9780                 0.9788
+     0.725                0.9780                 0.9787
+     0.750                0.9779                 0.9786
+     0.775                0.9778                 0.9783
+     0.800                0.9776                 0.9781
+     0.825                0.9773                 0.9778
+     0.850                0.9769                 0.9773
+     0.875                0.9764                 0.9767
+     0.900                0.9756                 0.9758
+     0.925                0.9743                 0.9745
+     0.950                0.9721                 0.9722
+
+best threshold with full competition: 0.65 (was 0.675); validation F0.5 0.9789
+  India: macro F0.5 = 0.9788
+  US: macro F0.5 = 0.9789
+threshold 0.65 written to matcher.json (2698s)
